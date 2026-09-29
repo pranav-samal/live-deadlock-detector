@@ -1,0 +1,151 @@
+# =============================================================================
+# live-deadlock-detector — .gitignore
+# Targets: Linux, C/C++, Python, eBPF toolchains, build artifacts
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Build artifacts and compiled output
+# -----------------------------------------------------------------------------
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.out
+*.elf
+*.bin
+build/
+dist/
+_build/
+out/
+
+# eBPF compiled objects
+*.bpf.o
+*.skel.h
+
+# Compiled BCC programs (if any Python bytecode)
+__pycache__/
+*.py[cod]
+*.pyo
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile.cmake
+
+# Autotools
+autom4te.cache/
+config.status
+config.log
+configure~
+
+# -----------------------------------------------------------------------------
+# C / C++ specifics
+# -----------------------------------------------------------------------------
+*.d          # dependency files
+*.i          # preprocessed C
+*.ii         # preprocessed C++
+*.s          # assembly output
+*.gcda
+*.gcno
+*.gcov
+core
+core.*
+vgcore.*     # valgrind core dumps
+
+# -----------------------------------------------------------------------------
+# Python specifics
+# -----------------------------------------------------------------------------
+*.egg-info/
+*.egg
+dist/
+*.dist-info/
+venv/
+.venv/
+env/
+.env/
+pip-wheel-metadata/
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyc
+
+# -----------------------------------------------------------------------------
+# Virtual machine images — never commit these
+# -----------------------------------------------------------------------------
+*.vmdk
+*.vdi
+*.qcow2
+*.img
+*.iso
+*.ova
+*.ovf
+
+# -----------------------------------------------------------------------------
+# Large binary traces and log files
+# -----------------------------------------------------------------------------
+*.trace
+*.perf
+*.dat
+*.log
+logs/
+trace_output/
+perf.data
+perf.data.old
+
+# -----------------------------------------------------------------------------
+# Secrets and credentials — NEVER commit
+# -----------------------------------------------------------------------------
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.secret
+secrets/
+credentials/
+*.token
+
+# -----------------------------------------------------------------------------
+# IDE and editor files
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.suo
+*.user
+*.ncb
+*.sdf
+.vs/
+
+# -----------------------------------------------------------------------------
+# OS generated files
+# -----------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+desktop.ini
+ehthumbs.db
+
+# -----------------------------------------------------------------------------
+# Test and benchmark output
+# -----------------------------------------------------------------------------
+test_output/
+benchmark_results/raw/
+*.benchmark
+*.perf_stat
+
+# -----------------------------------------------------------------------------
+# Generated documentation
+# -----------------------------------------------------------------------------
+docs/_build/
+doxygen_output/
+html/
+latex/

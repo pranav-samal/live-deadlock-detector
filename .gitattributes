@@ -1,0 +1,15 @@
+# Enforce consistent line endings
+# All text files use LF in the repository (important for Linux target)
+* text=auto eol=lf
+
+# Explicitly mark binary files
+*.o binary
+*.a binary
+*.so binary
+*.elf binary
+*.bin binary
+*.bpf.o binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
