@@ -197,25 +197,36 @@ uprobe attachment depends on the target symbol being present and unstripped in t
 
 | Component | Technology | Notes |
 |---|---|---|
-| eBPF programs | C (eBPF-restricted subset) | Compiled with clang/LLVM |
-| Kernel interface | BCC Python API or libbpf + C | Decision pending — see Section 7 |
-| User-space core | C or C++ | Collector, state, graph |
-| Detection/Remediation | C, C++, or Python | Decision pending — see Section 7 |
+| eBPF programs | C (eBPF-restricted subset) | Embedded as a string in the Python BCC loader |
+| Kernel interface | **BCC + Python** | **Decided.** Python loader attaches uprobes and reads events. |
+| User-space core | **Plain C** | **Decided.** Collector, state manager, graph manager. |
+| Detection / Remediation | **Plain C** | **Decided.** Deadlock detector, PI detector (Ashwin). |
 | Test programs | C (pthreads) | Reproducible deadlock and priority-inversion scenarios |
-| CLI | Python or C | Depends on user-space language choice |
+| CLI / display | C or Python | Ashwin's coordination; format TBD |
 | Build system | Makefile | To be defined |
-| Target OS | Ubuntu 22.04 LTS | Kernel ≥ 5.8 preferred for ring buffer support |
+| Target OS | Ubuntu 22.04 LTS | Kernel ≥ 5.8 preferred for BPF perf/ring buffer |
+
+### BCC-to-C event handoff
+
+The Python BCC loader reads raw binary event structs from the BPF perf buffer
+callback and writes them as bytes to stdout. The C collector reads from stdin
+(or a named pipe). This lets the Python and C sides be separate processes with
+no shared-memory requirement.
+
+The C collector's mock transport interface (`ldd_transport_set_mock_source`)
+is replaced in production by a file-descriptor reader that consumes the same
+binary struct layout defined in `src/common/events.h`. No changes to the
+event schema or transport interface are needed.
 
 ---
 
 ## 7. Open Design Questions
 
-These questions are unresolved and must be decided before Milestone 2 (mock event pipeline) begins. Both developers must agree on the answers.
+OQ-1 (BCC vs libbpf) and OQ-2 (user-space language) are now **resolved**.
+The remaining open questions are:
 
 | # | Question | Impact |
 |---|---|---|
-| OQ-1 | BCC or libbpf? | Affects tracer implementation and kernel version requirements. BCC is easier to prototype; libbpf is more portable and production-oriented. |
-| OQ-2 | User-space implementation language for collector and detection? | Affects module interfaces, build system, and FFI boundaries. C is consistent with the tracer; Python simplifies BCC integration; C++ provides stronger type safety. |
 | OQ-3 | How to observe thread run state for priority-inversion detection? | Basic mutex events may be insufficient. Options: additional scheduler tracepoints, `/proc/<tid>/stat` polling, or accepting a limitation in detection confidence. |
 | OQ-4 | Stale lock state policy after event loss? | Options: mark affected edges as uncertain, flush and rebuild from fresh events, or document as a known limitation. |
 | OQ-5 | Thread-lifecycle events? | Do we trace `pthread_create`/`pthread_exit` to handle thread-exit cleanup? Required if stale locks from exited threads are a problem. |

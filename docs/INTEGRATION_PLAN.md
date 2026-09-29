@@ -127,19 +127,19 @@ Developer B focused.
 ---
 
 ### Milestone 5 — Real eBPF Integration
-Requires the shared Ubuntu VM.
+Requires the shared Ubuntu VM. **Framework: BCC + Python (decided).**
 
 **Prerequisite:** Both developers agree the graph snapshot interface is stable.
 
 **Steps:**
-1. Developer A loads the eBPF tracer on the VM
-2. Attach probes to a simple test program
-3. Verify that real events drive the collector correctly
-4. Verify that lock state and graph edges appear and disappear as expected
-5. Replace the mock source with the real source
-6. Developer B's detection runs against the live graph snapshot
+1. Install BCC on Ubuntu: `sudo apt install -y bpfcc-tools python3-bpfcc linux-headers-$(uname -r)`
+2. Developer A writes `src/tracer/tracer.py` — Python/BCC loader that embeds the eBPF C program, attaches uprobes to `pthread_mutex_lock` / `pthread_mutex_unlock`, and writes raw binary event structs (matching `src/common/events.h`) to stdout via the perf buffer callback.
+3. Developer A adds `src/collector/transport_fd.c` — reads binary event bytes from a file descriptor (stdin by default); replaces the mock source for production use.
+4. Run as: `sudo python3 src/tracer/tracer.py <pid> | ./collector`
+5. Verify that real events drive the collector, state manager, and graph correctly.
+6. Developer B's detection runs against the live graph snapshot unchanged.
 
-**Integration test:** Run the two-thread deadlock scenario (`tests/scenarios/`) and verify a cycle alert is generated.
+**Integration test:** Run `tests/scenarios/deadlock_demo` with live BCC tracing. Verify cycle alert is generated.
 
 ---
 
