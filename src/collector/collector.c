@@ -13,11 +13,16 @@
 #include "collector.h"
 #include "transport.h"
 #include "../common/events.h"
+#include "../common/graph.h"
 #include "../state/lock_state.h"
 
 #include <stdio.h>    /* fprintf, stderr */
 #include <string.h>   /* memcpy, memset  */
 #include <stdint.h>
+
+/* graph.c internal functions used by the collector pipeline */
+void ldd_graph_mark_stale(void);
+void ldd_graph_reset(void);
 
 /* -------------------------------------------------------------------------
  * Internal helpers
@@ -145,34 +150,72 @@ int ldd_collector_process(const ldd_typed_event_t *event)
     uint8_t event_type = event->hdr.event_type;
 
     switch (event_type) {
-    case EVENT_LOCK_REQUEST:
-        ldd_state_on_request(
-            event->lock_request.hdr.tid,
-            event->lock_request.hdr.pid,
-            event->lock_request.hdr.lock_addr,
-            event->lock_request.is_trylock);
+    case EVENT_LOCK_REQUEST: {
+        const struct ldd_lock_request_event *e = &event->lock_request;
+        /* Update thread metadata so the graph carries sched info. */
+        ldd_thread_meta_t meta;
+        meta.tid            = e->hdr.tid;
+        meta.pid            = e->hdr.pid;
+        meta.sched_policy   = e->sched_policy;
+        meta.sched_priority = e->sched_priority;
+        meta.is_waiting     = 0; /* set by add_edge if owner known */
+        ldd_graph_update_thread_meta(&meta);
+        /* Update lock state first so we can check owner. */
+        ldd_state_on_request(e->hdr.tid, e->hdr.pid,
+                             e->hdr.lock_addr, e->is_trylock);
+        /* Add wait-for edge only if a known owner exists and it's a
+         * blocking call.  trylock threads are added to the waiter list
+         * but we only add a graph edge when they genuinely block. */
+        if (e->is_trylock == 0) {
+            ldd_lock_state_t ls;
+            if (ldd_state_get_lock(e->hdr.lock_addr, &ls) == 0 &&
+                ls.owner_tid != 0) {
+                ldd_graph_add_edge(e->hdr.tid, ls.owner_tid,
+                                   e->hdr.lock_addr);
+            }
+        }
         break;
-    case EVENT_LOCK_ACQUIRED:
-        ldd_state_on_acquired(
-            event->lock_acquired.hdr.tid,
-            event->lock_acquired.hdr.pid,
-            event->lock_acquired.hdr.lock_addr,
-            event->lock_acquired.sched_policy,
-            event->lock_acquired.sched_priority);
+    }
+    case EVENT_LOCK_ACQUIRED: {
+        const struct ldd_lock_acquired_event *e = &event->lock_acquired;
+        /* Remove the wait-for edge (thread no longer waiting). */
+        ldd_graph_remove_edge(e->hdr.tid, e->hdr.lock_addr);
+        /* Update state (sets new owner). */
+        ldd_state_on_acquired(e->hdr.tid, e->hdr.pid,
+                              e->hdr.lock_addr,
+                              e->sched_policy, e->sched_priority);
+        /* Refresh thread metadata with acquisition-time sched info. */
+        {
+            ldd_thread_meta_t meta;
+            meta.tid            = e->hdr.tid;
+            meta.pid            = e->hdr.pid;
+            meta.sched_policy   = e->sched_policy;
+            meta.sched_priority = e->sched_priority;
+            meta.is_waiting     = 0;
+            ldd_graph_update_thread_meta(&meta);
+        }
         break;
-    case EVENT_LOCK_ACQUIRE_FAILED:
-        ldd_state_on_acquire_failed(
-            event->lock_failed.hdr.tid,
-            event->lock_failed.hdr.lock_addr);
+    }
+    case EVENT_LOCK_ACQUIRE_FAILED: {
+        const struct ldd_lock_acquire_failed_event *e = &event->lock_failed;
+        /* Trylock failed — remove any edge and waiter state. */
+        ldd_graph_remove_edge(e->hdr.tid, e->hdr.lock_addr);
+        ldd_state_on_acquire_failed(e->hdr.tid, e->hdr.lock_addr);
         break;
-    case EVENT_LOCK_RELEASED:
-        ldd_state_on_released(
-            event->lock_released.tid,
-            event->lock_released.lock_addr);
+    }
+    case EVENT_LOCK_RELEASED: {
+        /* Clear owner in state; waiters' edges remain until their
+         * own ACQUIRED event resolves them. */
+        ldd_state_on_released(event->lock_released.tid,
+                              event->lock_released.lock_addr);
         break;
-    case EVENT_THREAD_EXIT:
-        ldd_state_on_thread_exit(event->thread_exit.hdr.tid);
+    }
+    case EVENT_THREAD_EXIT: {
+        uint32_t tid = event->thread_exit.hdr.tid;
+        ldd_graph_remove_thread(tid);
+        ldd_state_on_thread_exit(tid);
         break;
+    }
     case EVENT_LOST_EVENTS: {
         /* Use lost_events member; hdr is not valid for this type. */
         uint8_t etype = event->lost_events.event_type;
@@ -183,6 +226,7 @@ int ldd_collector_process(const ldd_typed_event_t *event)
         fprintf(stderr, "[collector] WARNING: %llu event(s) lost\n",
                 (unsigned long long)event->lost_events.lost_count);
         ldd_state_mark_stale();
+        ldd_graph_mark_stale();
         break;
     }
     default:
