@@ -1,0 +1,38 @@
+# Makefile for Windows (MinGW/GCC)
+# Build and run tests for Person 3 & 4 components
+
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c11 -I../src -I.
+LDFLAGS =
+
+# Output directory
+BUILD_DIR = build
+
+# Deadlock detector test
+DEADLOCK_TEST = $(BUILD_DIR)/test_deadlock_detector.exe
+DEADLOCK_SRCS = test_deadlock_detector.c ../src/detection/deadlock_detector.c
+DEADLOCK_OBJS = $(BUILD_DIR)/test_deadlock_detector.o $(BUILD_DIR)/deadlock_detector.o
+
+all: $(BUILD_DIR) $(DEADLOCK_TEST)
+
+$(BUILD_DIR):
+	@if not exist $(BUILD_DIR) mkdir $(BUILD_DIR)
+
+$(BUILD_DIR)/test_deadlock_detector.o: test_deadlock_detector.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/deadlock_detector.o: ../src/detection/deadlock_detector.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(DEADLOCK_TEST): $(DEADLOCK_OBJS)
+	$(CC) $(DEADLOCK_OBJS) $(LDFLAGS) -o $@
+
+test: $(DEADLOCK_TEST)
+	@echo.
+	@echo Running deadlock detector tests...
+	@$(DEADLOCK_TEST)
+
+clean:
+	@if exist $(BUILD_DIR) rmdir /S /Q $(BUILD_DIR)
+
+.PHONY: all test clean
