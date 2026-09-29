@@ -47,7 +47,7 @@ Every event struct begins with these fields in this order:
 | `lock_addr` | `uint64_t` | Virtual address | Address of the `pthread_mutex_t` in the target process's virtual address space. Used as the unique lock identifier. |
 | `_pad` | `uint8_t[2]` | — | Padding to align the struct to 8 bytes. Must be zero-filled. |
 
-**Total size of common header:** 24 bytes.
+**Total size of common header:** 28 bytes (verified on Linux x86_64 GCC; field sum: 1+1+4+4+8+8+2=28).
 
 ### Notes on identifiers
 
@@ -80,7 +80,7 @@ Every event struct begins with these fields in this order:
 - The thread may return with `EBUSY` (trylock failure) — see `LOCK_ACQUIRE_FAILED`.
 - For blocking calls, the thread has not acquired the lock until `EVENT_LOCK_ACQUIRED` is observed.
 
-**Total struct size:** 36 bytes.
+**Total struct size:** 40 bytes (verified on Linux x86_64).
 
 ---
 
@@ -102,7 +102,7 @@ Every event struct begins with these fields in this order:
 **What this event does NOT prove:**
 - The thread is still scheduled at the moment the user-space collector processes this event.
 
-**Total struct size:** 32 bytes.
+**Total struct size:** 36 bytes (verified on Linux x86_64).
 
 ---
 
@@ -121,7 +121,7 @@ Every event struct begins with these fields in this order:
 
 **Purpose:** Allows the collector to clean up any pending `LOCK_REQUEST` state for this thread+lock pair without waiting for a timeout.
 
-**Total struct size:** 32 bytes.
+**Total struct size:** 36 bytes (verified on Linux x86_64).
 
 ---
 
@@ -137,7 +137,7 @@ Every event struct begins with these fields in this order:
 - The collector must verify that the releasing thread matches the recorded owner. If not, log an inconsistency and do not corrupt state.
 - After this event, any thread previously in `LOCK_REQUEST` state for this lock may now proceed; the collector should update waiting state accordingly (though the actual acquisition is only confirmed by a subsequent `LOCK_ACQUIRED` event).
 
-**Total struct size:** 24 bytes (common header only).
+**Total struct size:** 28 bytes (common header only; verified on Linux x86_64).
 
 ---
 
@@ -155,7 +155,7 @@ Every event struct begins with these fields in this order:
 
 **Collector behavior:** On receiving this event, remove the thread from all waiting sets and flag any locks it holds as orphaned. Do not silently leave the graph with stale edges pointing to an exited thread.
 
-**Total struct size:** 32 bytes.
+**Total struct size:** 36 bytes (verified on Linux x86_64).
 
 ---
 
@@ -183,7 +183,7 @@ Every event struct begins with these fields in this order:
 These are the canonical reference definitions. The actual header file will live in `src/common/events.h`. These definitions must match exactly between the eBPF C program and the user-space collector.
 
 ```c
-/* src/common/events.h — AUTO-GENERATED REFERENCE — DO NOT EDIT MANUALLY */
+/* src/common/events.h — reference listing (canonical file lives in src/common/) */
 /* Schema version 1 */
 
 #ifndef LDD_EVENTS_H
@@ -194,12 +194,12 @@ These are the canonical reference definitions. The actual header file will live 
 #define LDD_SCHEMA_VERSION  1
 
 /* Event type constants */
-#define EVENT_LOCK_REQUEST       1
-#define EVENT_LOCK_ACQUIRED      2
+#define EVENT_LOCK_REQUEST        1
+#define EVENT_LOCK_ACQUIRED       2
 #define EVENT_LOCK_ACQUIRE_FAILED 3
-#define EVENT_LOCK_RELEASED      4
-#define EVENT_THREAD_EXIT        5
-#define EVENT_LOST_EVENTS        6
+#define EVENT_LOCK_RELEASED       4
+#define EVENT_THREAD_EXIT         5
+#define EVENT_LOST_EVENTS         6
 
 /* Scheduling policy sentinel for "unavailable" */
 #define LDD_SCHED_UNAVAILABLE   -1
@@ -215,7 +215,7 @@ struct ldd_event_hdr {
     uint64_t lock_addr;
     uint8_t  _pad[2];
 } __attribute__((packed));
-/* sizeof: 24 bytes */
+/* sizeof: 28 bytes (verified on Linux x86_64 GCC; field sum: 1+1+4+4+8+8+2=28) */
 
 /* EVENT_LOCK_REQUEST (type 1) */
 struct ldd_lock_request_event {
@@ -226,7 +226,7 @@ struct ldd_lock_request_event {
     int32_t  sched_priority;   /* 1-99 RT, 0 CFS, or LDD_PRIO_UNAVAILABLE */
     uint8_t  _pad3[2];
 } __attribute__((packed));
-/* sizeof: 36 bytes */
+/* sizeof: 40 bytes (hdr=28 + 1+1+4+4+2 = 40) */
 
 /* EVENT_LOCK_ACQUIRED (type 2) */
 struct ldd_lock_acquired_event {
@@ -234,7 +234,7 @@ struct ldd_lock_acquired_event {
     int32_t  sched_policy;
     int32_t  sched_priority;
 } __attribute__((packed));
-/* sizeof: 32 bytes */
+/* sizeof: 36 bytes (hdr=28 + 4+4 = 36) */
 
 /* EVENT_LOCK_ACQUIRE_FAILED (type 3) */
 struct ldd_lock_acquire_failed_event {
@@ -242,18 +242,18 @@ struct ldd_lock_acquire_failed_event {
     int32_t  retval;
     uint8_t  _pad4[4];
 } __attribute__((packed));
-/* sizeof: 32 bytes */
+/* sizeof: 36 bytes (hdr=28 + 4+4 = 36) */
 
 /* EVENT_LOCK_RELEASED (type 4) — common header only */
 typedef struct ldd_event_hdr ldd_lock_released_event;
-/* sizeof: 24 bytes */
+/* sizeof: 28 bytes (same as ldd_event_hdr) */
 
 /* EVENT_THREAD_EXIT (type 5) */
 struct ldd_thread_exit_event {
     struct ldd_event_hdr hdr;
     uint8_t  _reserved[8];
 } __attribute__((packed));
-/* sizeof: 32 bytes */
+/* sizeof: 36 bytes (hdr=28 + 8 = 36) */
 
 /* EVENT_LOST_EVENTS (type 6) — synthetic, generated in user space */
 struct ldd_lost_events {
@@ -262,7 +262,7 @@ struct ldd_lost_events {
     uint64_t lost_count;
     uint64_t timestamp_ns;
 } __attribute__((packed));
-/* sizeof: 18 bytes */
+/* sizeof: 18 bytes (1+1+8+8 = 18; verified correct) */
 
 #endif /* LDD_EVENTS_H */
 ```
