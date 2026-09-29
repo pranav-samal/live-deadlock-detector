@@ -13,6 +13,7 @@
 #include "collector.h"
 #include "transport.h"
 #include "../common/events.h"
+#include "../state/lock_state.h"
 
 #include <stdio.h>    /* fprintf, stderr */
 #include <string.h>   /* memcpy, memset  */
@@ -145,31 +146,45 @@ int ldd_collector_process(const ldd_typed_event_t *event)
 
     switch (event_type) {
     case EVENT_LOCK_REQUEST:
-        /* Phase C: ldd_state_on_request() */
+        ldd_state_on_request(
+            event->lock_request.hdr.tid,
+            event->lock_request.hdr.pid,
+            event->lock_request.hdr.lock_addr,
+            event->lock_request.is_trylock);
         break;
     case EVENT_LOCK_ACQUIRED:
-        /* Phase C: ldd_state_on_acquired() */
+        ldd_state_on_acquired(
+            event->lock_acquired.hdr.tid,
+            event->lock_acquired.hdr.pid,
+            event->lock_acquired.hdr.lock_addr,
+            event->lock_acquired.sched_policy,
+            event->lock_acquired.sched_priority);
         break;
     case EVENT_LOCK_ACQUIRE_FAILED:
-        /* Phase C: ldd_state_on_acquire_failed() */
+        ldd_state_on_acquire_failed(
+            event->lock_failed.hdr.tid,
+            event->lock_failed.hdr.lock_addr);
         break;
     case EVENT_LOCK_RELEASED:
-        /* Phase C: ldd_state_on_released() */
+        ldd_state_on_released(
+            event->lock_released.tid,
+            event->lock_released.lock_addr);
         break;
     case EVENT_THREAD_EXIT:
-        /* Phase C: ldd_state_on_thread_exit() */
+        ldd_state_on_thread_exit(event->thread_exit.hdr.tid);
         break;
-    case EVENT_LOST_EVENTS:
+    case EVENT_LOST_EVENTS: {
         /* Use lost_events member; hdr is not valid for this type. */
-        event_type = event->lost_events.event_type;
-        if (event_type != EVENT_LOST_EVENTS) {
+        uint8_t etype = event->lost_events.event_type;
+        if (etype != EVENT_LOST_EVENTS) {
             fprintf(stderr, "[collector] process: EVENT_LOST_EVENTS type byte mismatch\n");
             return -1;
         }
-        /* Phase C: ldd_state_mark_stale() */
         fprintf(stderr, "[collector] WARNING: %llu event(s) lost\n",
                 (unsigned long long)event->lost_events.lost_count);
+        ldd_state_mark_stale();
         break;
+    }
     default:
         fprintf(stderr, "[collector] process: unhandled event_type=%u\n",
                 (unsigned)event_type);
