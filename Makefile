@@ -60,11 +60,18 @@ E_BIN := $(BINDIR)/test_mock_pipeline # Phase E — mock pipeline integration
 
 ALL_BINS := $(B_BIN) $(C_BIN) $(D_BIN) $(E_BIN)
 
+# --- Phase G: eBPF smoke-test program ----------------------------------------
+# Built only on Linux (requires pthreads).  Not included in 'all' because
+# it is not a test binary; it is the target program for the live tracer.
+
+SMOKE_BIN := $(BINDIR)/simple_mutex
+SMOKE_SRC := tests/scenarios/simple_mutex.c
+
 # =============================================================================
 # Phony targets
 # =============================================================================
 
-.PHONY: all build test test-unit test-integration clean help
+.PHONY: all build test test-unit test-integration smoke-test clean help
 
 all: $(ALL_BINS)
 	@echo ""
@@ -101,6 +108,15 @@ $(D_BIN): tests/unit/test_graph.c $(GRAPH_SRC) | $(BINDIR)
 # Phase E: mock pipeline integration (full stack)
 $(E_BIN): tests/integration/test_mock_pipeline.c $(PIPELINE_SRCS) | $(BINDIR)
 	$(CC) $(CFLAGS) $(INCS) $^ -o $@
+
+# Phase G: simple_mutex smoke-test target (Linux only, requires -lpthread)
+$(SMOKE_BIN): $(SMOKE_SRC) | $(BINDIR)
+	$(CC) -std=c11 -Wall -pthread $< -o $@
+
+smoke-test: $(SMOKE_BIN)
+	@echo "Built: $(SMOKE_BIN)"
+	@echo "Run:   ./$(SMOKE_BIN)"
+	@echo "Trace: sudo python3 src/tracer/tracer.py --verbose \$$(pgrep simple_mutex)"
 
 # =============================================================================
 # Test runners
@@ -142,9 +158,10 @@ help:
 	@echo "  test              Run all unit + integration tests"
 	@echo "  test-unit         Run Phase B, C, D unit tests only"
 	@echo "  test-integration  Run Phase E integration test only"
+	@echo "  smoke-test        Build simple_mutex demo for Phase G live tracing"
 	@echo "  clean             Remove build/ directory"
 	@echo "  help              Show this message"
 	@echo ""
 	@echo "Platform: Linux/WSL with GCC (not MinGW)."
-	@echo "Phase G eBPF tracer is not built here."
+	@echo "Phase G eBPF tracer requires Ubuntu VM — see docs/SETUP.md."
 	@echo ""
